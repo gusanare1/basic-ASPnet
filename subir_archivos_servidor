@@ -1,0 +1,232 @@
+<asp:UpdatePanel runat="server" id="UpdatePanel"
+             updatemode="Conditional" >
+            <Triggers>
+              <asp:PostBackTrigger ControlID ="btnGrabar"/>
+<%--					 <asp:PostBackTrigger ControlID ="BtnGuardar"/>--%>
+            </Triggers>
+            <ContentTemplate>
+                    <form method="post" enctype="multipart/form-data">
+                       <asp:FileUpload ID="UploadAttachments1" runat="server" > </asp:FileUpload>
+                    </form>
+		<asp:Button ID="upload1" runat="server" hidden="true" />
+                <asp:Button ID="btnGrabar" runat="server" text="Subir archivo" />
+                
+                
+                <asp:LinkButton ID="btnDescargar" runat="server" text="Descargar" visible="false"/>
+                <asp:LinkButton ID="eliminar" runat="server" text="-" visible="false" />
+                <%--<asp:Button ID="btnBase" runat="server" text="Guardar en base" />--%>
+                
+                <asp:Panel ID= "Panel1"  runat = "server">
+
+                </asp:Panel>             
+               
+            </ContentTemplate>
+        </asp:UpdatePanel>
+        
+        
+        /**************************************/
+        /******************************************************************/
+        /******************************************************************/
+        /******************************************************************/
+        /******************************************************************/
+        
+        
+    'FUNCION QUE Guarda en base los archivos
+    'ListaH es una HashTable ("archivo|i1|i2",byte())-> nombrearchivo,contenidodelarchivo
+    Protected Sub btnBase_Click(ByVal id_ticket As Integer)
+
+        If Not listaH.Keys.Count = 0 Then
+            Try
+                Dim keys As ICollection = listaH.Keys
+                Dim keysArray(listaH.Count - 1) As String
+                keys.CopyTo(keysArray, 0)
+                'For i As Integer = 0 To list.Count - 1
+                For Each key As String In keysArray
+                    Dim size_ As String = key.Split("|")(0)
+                    Dim contentType_ As String = key.Split("|")(1)
+                    Dim fileName_ As String = key.Split("|")(3)
+                    Dim objeto As Byte() = DirectCast(listaH(key), Byte())
+                    'Response.Write(size_ & "<br/>")
+                    'Response.Write(fileName_ & "<br/>")
+                    'Response.Write(contentType_ & "<br/>")
+
+                    Dim conn As New Data.SqlClient.SqlConnection(ConfigurationManager.ConnectionStrings("CRM_CorporativoConnectionString").ConnectionString)
+                    Dim cmd As New Data.SqlClient.SqlCommand()
+                    cmd.Connection = conn
+                    cmd.CommandType = Data.CommandType.StoredProcedure
+                    cmd.CommandText = "pr_ingreso_archivos"
+
+                    cmd.Parameters.AddWithValue("id_ticket", id_ticket)
+                    cmd.Parameters.AddWithValue("tamano_kb", size_)
+                    cmd.Parameters.AddWithValue("contenido", objeto)
+                    cmd.Parameters.AddWithValue("nombre", fileName_)
+                    cmd.Parameters.AddWithValue("tipo_contenido", contentType_)
+
+                    Dim result As Integer
+                    Dim previousConnectionState As Data.ConnectionState = conn.State
+                    Try
+                        If conn.State = Data.ConnectionState.Closed Then
+                            conn.Open()
+                        End If
+                        result = CInt(cmd.ExecuteScalar())
+                    Finally
+                        If previousConnectionState = Data.ConnectionState.Closed Then
+                            conn.Close()
+                        End If
+                    End Try
+                Next
+
+            Catch ex As Exception
+
+            End Try
+        End If
+
+
+    End Sub
+    
+    /******************************************************************/
+    /******************************************************************/
+    /******************************************************************/
+    /******************************************************************/
+    /******************************************************************/
+    /******************************************************************/
+    /******************************************************************/
+    
+    'Funcion que repita los controles dentro de un panel 
+    '(puesto que se pierden los controles cuando se carga una pagina [<vuelve a su estado original>])
+    Private Sub repintar()
+        Panel1.Controls.Clear()
+        'REPINTAR
+        Dim keys As ICollection = listaH.Keys
+        Dim keysArray(listaH.Count - 1) As String
+        keys.CopyTo(keysArray, 0)
+
+
+        'For i As Integer = 0 To list.Count - 1
+        For Each key As String In keysArray
+            Dim id_archivos_ As String = key.Split("|")(2)
+            Dim fileName_ As String = key.Split("|")(3)
+            Dim panel As New Panel
+            'panel.ID = List(i).Split("|")(1) & i
+            panel.ID = id_archivos_
+
+            Dim label As New Label
+            'label.Text = List(i).Split("|")(1)
+            label.Text = fileName_
+
+            'label.Attributes("class") = "archivos"
+            label.CssClass = "archivos"
+
+            Dim menos As New LinkButton
+            menos.ID = key(0) & key(1) & "ijk" 'dispara la accion
+            'menos.Text = "Borrar"
+            menos.CssClass = "imagelink"
+            'menos.ID = i & "i"
+
+            panel.Controls.Add(label)
+            panel.Controls.Add(menos)
+            'MsgBox("panel " & Panel1.Controls.Count & "ListaH " & listaH.Count)
+            'If (Panel1.Controls.Count = listaH.Count) Then
+            Panel1.Controls.Add(panel)
+            'End If
+        Next
+    End Sub
+    
+    
+    
+    /******************************************************************/
+    /******************************************************************/
+    /******************************************************************/
+    /******************************************************************/
+    /******************************************************************/
+    
+    'FUNCION QUE GUARDA LOS ARCHIVOS EN EL HASHTABLE
+    'MUESTRA EN UN DIV LOS ARCHIVOS QUE SE SUBEN
+    Protected Sub btnGrabar_Click(ByVal sender As Object, ByVal e As System.EventArgs) Handles btnGrabar.Click
+
+
+        Dim size As Integer = Session("size")
+        Dim index As Integer = Session("index")
+
+        Dim filePath As String = UploadAttachments1.FileName
+        Dim filename As String = Path.GetFileName(filePath)
+
+        Dim fs As Stream = UploadAttachments1.PostedFile.InputStream
+        Dim br As New BinaryReader(fs)
+        Dim bytes As Byte() = br.ReadBytes(fs.Length)
+        'lista.Add(bytes)
+
+        If index <= 0 Then
+            index = listaH.Count
+        End If
+
+        index += 1
+        Dim str As String
+        'list.Add(index & "|" & filePath)
+
+        If index > 0 Then
+            str = bytes.Length & "|" & UploadAttachments1.PostedFile.ContentType & "|" & index & "|" & filePath
+        Else
+            str = bytes.Length & "|" & UploadAttachments1.PostedFile.ContentType & "|" & "0" & index & "|" & filePath
+        End If
+
+
+        If bytes.Length < 5120000 And bytes.Length > 0 And (size < 5120000 And (5120000 - size > bytes.Length)) Then
+            listaH.Add(str, bytes) 'GUARDAMOS EN HASH
+            size = size + bytes.Length
+            'repintar()
+        Else
+
+            If bytes.Length <= 0 Then
+                ScriptManager.RegisterStartupScript(Me, Me.GetType(), "myScript", "mostrarMensaje('ERROR: Cargue primero el archivo.');", True)
+            ElseIf bytes.Length > 5120000 Then
+                ScriptManager.RegisterStartupScript(Me, Me.GetType(), "myScript", "mostrarMensaje('ERROR: Su archivo no puede superar los 5Mb.');", True)
+            ElseIf (size < 5120000 Or (5120000 - size > bytes.Length)) Then
+                ScriptManager.RegisterStartupScript(Me, Me.GetType(), "myScript", "mostrarMensaje('El total de sus archivos supera los 5Mb.');", True)
+            Else
+                ScriptManager.RegisterStartupScript(Me, Me.GetType(), "myScript", "mostrarMensaje('Error interno');", True)
+            End If
+            'repintar()
+        End If
+        repintar()
+    End Sub
+    
+    /******************************************************************/
+    /******************************************************************/
+    /******************************************************************/
+    /******************************************************************/
+    /******************************************************************/
+    'FUNCION QUE DESCARGA LOS ARCHIVOS DE BASE
+      'DESCARGAS EL ULTIMO ARCHIVO
+    'Protected Sub btnDescargar_Click(ByVal sender As Object, ByVal e As EventArgs) Handles btnDescargar.Click
+    '    'Dim id As Integer = Integer.Parse(TryCast(sender, LinkButton).CommandArgument)
+    '    Dim bytes As Byte()
+    '    Dim fileName As String, contentType As String
+    '    Dim constr As String = ConfigurationManager.ConnectionStrings("CRM_CorporativoConnectionString").ConnectionString
+    '    Using con As New SqlConnection(constr)
+    '        Using cmd As New SqlCommand()
+    '            cmd.CommandText = "select nombre, contenido, tipo_contenido from tbl_archivo where id_archivo=@Id"
+    '            cmd.Parameters.AddWithValue("@Id", 7) '/******LO DESCARGA POR ID
+    '            cmd.Connection = con
+    '            con.Open()
+    '            Using sdr As SqlDataReader = cmd.ExecuteReader()
+    '                sdr.Read()
+    '                bytes = DirectCast(sdr("contenido"), Byte())
+    '                fileName = sdr("nombre").ToString()
+    '                contentType = sdr("tipo_contenido").ToString()
+    '            End Using
+    '            con.Close()
+    '        End Using
+    '    End Using
+
+    '    Response.Clear()
+    '    Response.Buffer = True
+    '    Response.Charset = ""
+    '    Response.Cache.SetCacheability(HttpCacheability.NoCache)
+    '    Response.ContentType = contentType
+    '    Response.AppendHeader("Content-Disposition", "attachment; filename=" + fileName)
+    '    Response.BinaryWrite(bytes)
+    '    Response.Flush()
+    '    Response.End()
+    'End Sub
+    
